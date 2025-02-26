@@ -2,6 +2,10 @@ import asyncio
 import struct
 from bleak import BleakClient
 
+
+
+
+from location import *
 # Định nghĩa UUID
 SERVICE_UUID = "680c21d9-c946-4c1f-9c11-baa1c21329e7"
 LOCATION_DATA_UUID = "003bbdf2-c634-4b3d-ab56-7ec889b89a37"
@@ -11,21 +15,11 @@ LOCATION_DATA_MODE_UUID = "a02b947e-df97-4516-996a-1882521e0ead"
 def decode_location_data(mode, data):
     """Giải mã dữ liệu vị trí dựa trên mode (0, 1, hoặc 2)."""
     if mode == 0:  # Position only
-        if len(data) == 14:
-            data = data[1:]  # Loại bỏ byte rác nếu có
-        x, y, z, quality = struct.unpack("<iiiB", data)
-        return {"position": {"x": x / 1000.0, "y": y / 1000.0, "z": z / 1000.0}, "quality": quality}
+        return decode_location_mode_0(data)
     elif mode == 1:  # Distances
-        count = data[0]
-        distances = []
-        for i in range(count):
-            node_id, distance, quality = struct.unpack_from("<HiB", data, 1 + i * 7)
-            distances.append({"node_id": node_id, "distance": distance / 1000.0, "quality": quality})
-        return {"distances": distances}
+        return decode_location_mode_1(data)
     elif mode == 2:  # Position + Distances
-        position = decode_location_data(0, data[:13])
-        distances = decode_location_data(1, data[13:])
-        return {**position, **distances}
+        return decode_location_mode_2(data)
     else:
         return None
 
