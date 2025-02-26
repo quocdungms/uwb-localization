@@ -24,7 +24,7 @@ def decode_location_mode_0(data):
     result = {}
     location_mode = data[0]
     result["Mode:"] = location_mode
-    x, y, z, quality_position = struct.unpack("<iiiB", data[1:14])
+    x, y, z, quality_position = struct.unpack("<i i i B", data[1:14])
     result["Position"] = {
         "X": x / 1000,  # Chuyển từ mm sang m
         "Y": y / 1000,

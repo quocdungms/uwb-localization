@@ -1,6 +1,4 @@
 import asyncio
-from uu import decode
-
 from bleak import BleakScanner, BleakClient
 import struct
 import socketio
