@@ -117,7 +117,10 @@ async def periodic_read(device):
                             # print(f"Decoded Data: {decoded_data}")
                             # await send_data_to_server(decoded_data)
                             # print_result(decoded_data)
+                            print("===========================================\n")
                             print(decoded_data)
+                            print("===========================================\n")
+
                     except Exception as e:
                         print(f"Error reading characteristic: {e}")
                         break
