@@ -40,8 +40,8 @@ def calculate_velocity(sample1, sample2):
     """Tính tốc độ (m/s) từ hai mẫu liên tiếp."""
     distance = calculate_distance(sample1, sample2)
     delta_t = sample2.timestamp - sample1.timestamp
-    print("time1: " + sample1)
-    print("time2:" + sample2)
+    print("time1: ", sample1)
+    print("time2: ", sample2)
     if delta_t <= 0:  # Tránh chia cho 0
         return 0
     return distance / delta_t
