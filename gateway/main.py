@@ -143,7 +143,7 @@ async def main():
         print("\nScanning for devices...")
         devices = await BleakScanner.discover()
 
-        dw_devices = [d for d in devices if d.name and "DWCE07" in d.name]
+        dw_devices = [d for d in devices if d.name and "DWD29A" in d.name]
 
         if not dw_devices:
             continue
