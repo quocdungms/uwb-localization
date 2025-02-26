@@ -7,7 +7,7 @@ import socketio
 import json
 
 from location import *
-
+from utils import *
 sio = socketio.AsyncClient()
 SERVER_URL = "http://172.16.0.166:5000"
 
@@ -114,9 +114,9 @@ async def periodic_read(device):
 
                         decoded_data = decode_raw_data(data)
                         if decoded_data:
-                            print(f"Decoded Data: {decoded_data}")
+                            # print(f"Decoded Data: {decoded_data}")
                             # await send_data_to_server(decoded_data)
-
+                            print_result(decoded_data)
 
                     except Exception as e:
                         print(f"Error reading characteristic: {e}")
