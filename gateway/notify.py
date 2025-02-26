@@ -13,7 +13,6 @@ LOCATION_DATA_MODE_UUID = "a02b947e-df97-4516-996a-1882521e0ead"
 
 # Hàm giải mã Location Data
 def decode_location_data(mode, data):
-    """Giải mã dữ liệu vị trí dựa trên mode (0, 1, hoặc 2)."""
     if mode == 0:  # Position only
         return decode_location_mode_0(data)
     elif mode == 1:  # Distances
@@ -25,10 +24,8 @@ def decode_location_data(mode, data):
 
 # Hàm xử lý dữ liệu nhận được từ notification
 def notification_handler(sender, data):
-    """Xử lý dữ liệu nhận được từ notification."""
+
     print(f"Nhận dữ liệu từ {sender}: {data.hex()}")
-    # Đọc mode để giải mã dữ liệu (giả định mode đã biết, hoặc cần đọc trước)
-    # Ở đây tôi giả định mode 2 dựa trên dữ liệu thực tế bạn cung cấp trước đó
     decoded_data = decode_location_data(2, data)
     print(f"Dữ liệu giải mã: {decoded_data}")
 
@@ -65,8 +62,8 @@ async def setup_notifications(address):
 
 # Hàm chính
 async def main():
-    # Thay bằng địa chỉ BLE của module DWM1001 của bạn
-    module_address = "EB:52:53:F5:D5:90"  # Ví dụ
+
+    module_address = "EB:52:53:F5:D5:90"
     await setup_notifications(module_address)
 
 if __name__ == "__main__":

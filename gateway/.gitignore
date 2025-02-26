@@ -4,13 +4,15 @@
 *.pyd
 __pycache__/
 
+
+
 # Virtual environment
 venv/
 env/
 ENV/
 .venv/
 .virtualenv/
-
+.env
 # PyCharm-specific files
 .idea/
 
