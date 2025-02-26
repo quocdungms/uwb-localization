@@ -1,4 +1,6 @@
 import asyncio
+from queue import PriorityQueue
+
 from bleak import BleakScanner, BleakClient
 import struct
 import socketio
@@ -114,8 +116,8 @@ async def periodic_read(device):
                         if decoded_data:
                             # print(f"Decoded Data: {decoded_data}")
                             # await send_data_to_server(decoded_data)
-                            print_result(decoded_data)
-
+                            # print_result(decoded_data)
+                            print(decoded_data)
                     except Exception as e:
                         print(f"Error reading characteristic: {e}")
                         break
