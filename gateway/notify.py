@@ -1,32 +1,14 @@
 import asyncio
 import struct
 from bleak import BleakClient
-
-
-
-
 from location import *
-# Định nghĩa UUID
-SERVICE_UUID = "680c21d9-c946-4c1f-9c11-baa1c21329e7"
-LOCATION_DATA_UUID = "003bbdf2-c634-4b3d-ab56-7ec889b89a37"
-LOCATION_DATA_MODE_UUID = "a02b947e-df97-4516-996a-1882521e0ead"
+from init import *
 
-# Hàm giải mã Location Data
-def decode_location_data(mode, data):
-    if mode == 0:  # Position only
-        return decode_location_mode_0(data)
-    elif mode == 1:  # Distances
-        return decode_location_mode_1(data)
-    elif mode == 2:  # Position + Distances
-        return decode_location_mode_2(data)
-    else:
-        return None
 
 # Hàm xử lý dữ liệu nhận được từ notification
 def notification_handler(sender, data):
-
     print(f"Nhận dữ liệu từ {sender}: {data.hex()}")
-    decoded_data = decode_location_data(2, data)
+    decoded_data = decode_location_data(data)
     print(f"Dữ liệu giải mã: {decoded_data}")
 
 # Hàm kết nối và đăng ký notification

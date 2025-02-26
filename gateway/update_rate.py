@@ -2,9 +2,7 @@ import asyncio
 import struct
 from bleak import BleakClient
 
-# Định nghĩa UUID
-UPDATE_RATE_UUID = "7bd47f30-5602-4389-b069-8305731308b6"
-
+from init import UPDATE_RATE_UUID
 
 # Hàm đọc và giải mã Update Rate
 async def read_update_rate(address):
