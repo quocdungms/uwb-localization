@@ -1,3 +1,9 @@
+import asyncio
+from bleak import BleakClient
+from init import *
+# UUID của characteristic Operation Mode
+OPERATION_MODE_UUID = "3f0afd88-7770-46b0-b5e7-9fc099598964"
+
 def decode_operation_mode(operation_bytes):
     """
     Giải mã Operation Mode từ 2 byte nhận được từ characteristic UUID "3f0afd88-7770-46b0-b5e7-9fc099598964".
@@ -55,24 +61,38 @@ def decode_operation_mode(operation_bytes):
 
     return result
 
-# # Ví dụ sử dụng
-# if __name__ == "__main__":
-#     # Giả sử dữ liệu 2 byte được đọc từ characteristic
-#     operation_bytes = bytes([0x80, 0x00])  # Ví dụ: anchor, UWB off, firmware 1
-#     decoded = decode_operation_mode(operation_bytes)
-#     print(decoded)
+async def read_and_decode_operation_mode(address):
+    """
+    Kết nối đến thiết bị BLE, đọc dữ liệu Operation Mode và giải mã.
 
-import asyncio
-from bleak import BleakClient
-from init import *
-DEVICE_ADDRESS = TAG_MAC  # Thay bằng địa chỉ MAC của thiết bị
-UUID = OPERATION_MODE_UUID  # UUID cần giải mã
+    Args:
+        address (str): Địa chỉ MAC của thiết bị BLE (ví dụ: "AA:BB:CC:DD:EE:FF").
+    """
+    try:
+        async with BleakClient(address) as client:
+            # Kiểm tra kết nối
+            if not client.is_connected:
+                print(f"Không thể kết nối đến thiết bị {address}")
+                return
 
-async def read_data(address, uuid):
-    async with BleakClient(address) as client:
-        print(f"Connected: {client.is_connected}")
-        data = await client.read_gatt_char(uuid)
-        print(f"Data from {uuid}: {data}")
-        # Tùy vào định dạng dữ liệu, giải mã tại đây
+            print(f"Đã kết nối đến thiết bị {address}")
 
-asyncio.run(read_data(DEVICE_ADDRESS, UUID))
+            # Đọc dữ liệu từ characteristic Operation Mode
+            operation_data = await client.read_gatt_char(OPERATION_MODE_UUID)
+            print(f"Dữ liệu thô (hex): {operation_data.hex()}")
+
+            # Giải mã dữ liệu
+            decoded_data = decode_operation_mode(operation_data)
+            print("Dữ liệu đã giải mã:", decoded_data)
+
+    except Exception as e:
+        print(f"Lỗi khi kết nối hoặc đọc dữ liệu: {e}")
+
+# Hàm chạy chính
+async def main():
+    # Thay bằng địa chỉ MAC của thiết bị DWM1001 của bạn
+    device_address = TAG_MAC  # Ví dụ, thay bằng địa chỉ thật
+    await read_and_decode_operation_mode(device_address)
+
+if __name__ == "__main__":
+    asyncio.run(main())
