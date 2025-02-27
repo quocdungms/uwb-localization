@@ -126,7 +126,7 @@ async def read_and_decode_anchor_data(address: str):
 
 async def main():
     # Thay bằng địa chỉ MAC của anchor DWM1001 của bạn
-    device_address = "C8:70:52:60:9F:38"  # Ví dụ, thay bằng địa chỉ thật
+    device_address = "EB:C3:F1:BC:24:DD"  # Ví dụ, thay bằng địa chỉ thật
     await read_and_decode_anchor_data(device_address)
 
 if __name__ == "__main__":
