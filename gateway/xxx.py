@@ -1,8 +1,11 @@
 import asyncio
 from bleak import BleakClient, BleakScanner
 
+
+
+from init import *
 # UUID của characteristic chứa dữ liệu device info
-DEVICE_INFO_UUID = "00002a24-0000-1000-8000-00805f9b34fb"  # Thay bằng UUID thực tế của bạn
+
 
 
 async def decode_device_info(data):
@@ -70,7 +73,7 @@ async def scan_and_connect():
 
         # Đọc dữ liệu từ characteristic
         try:
-            device_info = await client.read_gatt_char(DEVICE_INFO_UUID)
+            device_info = await client.read_gatt_char(DEVICE_INFO)
             print("Dữ liệu thô:", device_info.hex())
 
             # Giải mã dữ liệu
