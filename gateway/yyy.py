@@ -61,7 +61,6 @@ async def get_module_data(mac_address):
     return None
 
 
-# Nhận notify dữ liệu location
 async def process_location_notify(mac_address, name, location_uuid):
     async with BleakClient(mac_address) as client:
         if not await client.is_connected():
@@ -70,26 +69,38 @@ async def process_location_notify(mac_address, name, location_uuid):
 
         print(f"Connected to {name} ({mac_address}), subscribing to location data...")
 
-        # Lưu trữ 5 giá trị location gần nhất
-        location_buffer = []
+        # Buffer lưu giá trị X, Y, Z, Quality Factor
+        buffer_x = []
+        buffer_y = []
+        buffer_z = []
+        buffer_quality = []
 
         def notification_handler(_, data):
             location_decoded = decode_location_data(data)
-            if location_decoded and "X" in location_decoded:
-                location_buffer.append(location_decoded)
-                if len(location_buffer) > 5:
-                    location_buffer.pop(0)  # Giữ tối đa 5 giá trị gần nhất
+            if location_decoded:
+                # Thêm dữ liệu vào buffer
+                buffer_x.append(location_decoded["X"])
+                buffer_y.append(location_decoded["Y"])
+                buffer_z.append(location_decoded["Z"])
+                buffer_quality.append(location_decoded["Quality Factor"])
+
+                # Giữ tối đa 5 giá trị
+                if len(buffer_x) > 5:
+                    buffer_x.pop(0)
+                    buffer_y.pop(0)
+                    buffer_z.pop(0)
+                    buffer_quality.pop(0)
 
         # Đăng ký notify
         await client.start_notify(location_uuid, notification_handler)
 
         while True:
             await asyncio.sleep(1)  # Cứ mỗi giây kiểm tra buffer
-            if len(location_buffer) >= 5:
-                avg_x = sum(loc["X"] for loc in location_buffer) / 5
-                avg_y = sum(loc["Y"] for loc in location_buffer) / 5
-                avg_z = sum(loc["Z"] for loc in location_buffer) / 5
-                avg_quality = sum(loc["Quality Factor"] for loc in location_buffer) // 5
+            if len(buffer_x) >= 5:
+                avg_x = sum(buffer_x) / 5
+                avg_y = sum(buffer_y) / 5
+                avg_z = sum(buffer_z) / 5
+                avg_quality = sum(buffer_quality) // 5
 
                 timestamp = datetime.now().isoformat()
                 data = {
@@ -106,8 +117,6 @@ async def process_location_notify(mac_address, name, location_uuid):
                 }
 
                 send_to_server(data)
-
-
 # Chương trình chính
 async def main():
     modules = load_modules()
