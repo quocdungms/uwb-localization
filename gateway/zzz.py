@@ -1,13 +1,12 @@
 import asyncio
 import json
-import os
-import time
+from datetime import datetime
+import pytz
 from bleak import BleakScanner, BleakClient
 import requests
 from typing import Dict, Optional
-
 from dotenv import load_dotenv
-
+import os
 load_dotenv()
 sv_url = os.getenv("SV_URL") + ":" + os.getenv("PORT") + "/" + os.getenv("TOPIC")
 # UUID của các characteristic
@@ -28,9 +27,14 @@ def save_modules(modules: Dict):
     with open('module.json', 'w') as f:
         json.dump(modules, f, indent=4)
 
+# Hàm định dạng thời gian GMT+7
+def get_gmt7_time() -> str:
+    tz = pytz.timezone('Asia/Bangkok')  # GMT+7
+    return datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')
+
 # Gửi dữ liệu lên server
 def send_to_server(data: Dict) -> int:
-    url = sv_url  # URL mẫu cho server Node.js
+    url = sv_url
     headers = {'Content-Type': 'application/json'}
     try:
         response = requests.post(url, json=data, headers=headers, timeout=5)
@@ -47,7 +51,7 @@ def decode_operation_mode(op_mode: bytes) -> str:
 # Xử lý dữ liệu Location
 def process_location_data(location_data: bytes) -> Dict:
     mode = location_data[0]
-    if mode == 0 and len(location_data) >= 14:  # Position only (14 bytes)
+    if mode == 0 and len(location_data) >= 14:
         x = int.from_bytes(location_data[1:5], 'little', signed=True)
         y = int.from_bytes(location_data[5:9], 'little', signed=True)
         z = int.from_bytes(location_data[9:13], 'little', signed=True)
@@ -68,7 +72,7 @@ async def scan_and_connect(semaphore: asyncio.Semaphore):
         await asyncio.gather(*tasks)
 
 async def connect_and_collect_data(mac: str, module: Dict, semaphore: asyncio.Semaphore):
-    async with semaphore:  # Giới hạn số lượng kết nối đồng thời
+    async with semaphore:
         retries = 3
         for attempt in range(retries):
             try:
@@ -80,7 +84,7 @@ async def connect_and_collect_data(mac: str, module: Dict, semaphore: asyncio.Se
                     location_data_mode = await client.read_gatt_char(LOCATION_DATA_MODE_UUID)
                     location_data = await client.read_gatt_char(LOCATION_DATA_UUID)
                     location_info = process_location_data(location_data)
-                    timestamp = time.time()
+                    timestamp = get_gmt7_time()
 
                     data = {
                         'name': module['name'],
@@ -97,15 +101,18 @@ async def connect_and_collect_data(mac: str, module: Dict, semaphore: asyncio.Se
 
                     if tag_or_anchor == 'tag':
                         await setup_tag_notify(client, mac)
-                    break  # Thoát vòng lặp nếu thành công
+                    break
             except Exception as e:
-                print(f"Error with module {mac}: {e}")
-                if attempt < retries - 1:
-                    await asyncio.sleep(1)  # Chờ trước khi thử lại
+                print(f"Error with module {mac} (lần thử {attempt + 1}/{retries}): {e}")
+                if "InProgress" in str(e):
+                    await asyncio.sleep(2)
+                elif attempt < retries - 1:
+                    await asyncio.sleep(1)
                 else:
                     module['status'] = 'disable'
                     save_modules(load_modules())
-                    send_to_server({'id': mac, 'status': 'disable', 'time': time.time()})
+                    send_to_server({'id': mac, 'status': 'disable', 'time': get_gmt7_time()})
+        await asyncio.sleep(1)
 
 async def setup_tag_notify(client: BleakClient, mac: str):
     last_position = None
@@ -117,7 +124,7 @@ async def setup_tag_notify(client: BleakClient, mac: str):
     async def handle_notify(sender: int, data: bytes):
         nonlocal last_position, last_send_time
         location_info = process_location_data(data)
-        timestamp = time.time()
+        timestamp = datetime.now(pytz.timezone('Asia/Bangkok')).timestamp()
         position = location_info['position']
 
         is_moving = False
@@ -130,7 +137,7 @@ async def setup_tag_notify(client: BleakClient, mac: str):
 
         interval = notify_interval_moving if is_moving else notify_interval_stationary
         if timestamp - last_send_time >= interval:
-            data = {'id': mac, 'location': location_info, 'status': 'active', 'time': timestamp}
+            data = {'id': mac, 'location': location_info, 'status': 'active', 'time': get_gmt7_time()}
             send_to_server(data)
             last_send_time = timestamp
 
@@ -149,17 +156,28 @@ async def check_anchor_status(semaphore: asyncio.Semaphore):
 
 async def check_single_anchor(mac: str, module: Dict, semaphore: asyncio.Semaphore):
     async with semaphore:
-        try:
-            async with BleakClient(mac, timeout=10.0) as client:
-                await client.read_gatt_char(OPERATION_MODE_UUID)
-                module['status'] = 'active'
-        except Exception:
+        retries = 3
+        connected = False
+        for attempt in range(retries):
+            try:
+                async with BleakClient(mac, timeout=10.0) as client:
+                    await client.read_gatt_char(OPERATION_MODE_UUID)
+                    module['status'] = 'active'
+                    connected = True
+                    break
+            except Exception as e:
+                print(f"Error with anchor {mac} (lần thử {attempt + 1}/{retries}): {e}")
+                if "InProgress" in str(e):
+                    await asyncio.sleep(2)
+                elif attempt < retries - 1:
+                    await asyncio.sleep(1)
+        if not connected:
             module['status'] = 'disable'
-            send_to_server({'id': mac, 'status': 'disable', 'time': time.time()})
+            send_to_server({'id': mac, 'status': 'disable', 'time': get_gmt7_time()})
         save_modules(load_modules())
+        await asyncio.sleep(1)
 
 async def main():
-    # Giới hạn tối đa 2 kết nối đồng thời
     semaphore = asyncio.Semaphore(2)
     tasks = [
         asyncio.create_task(scan_and_connect(semaphore)),
