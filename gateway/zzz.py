@@ -1,6 +1,6 @@
 import asyncio
 from bleak import BleakClient
-
+from init import *
 # Định nghĩa UUID của các Anchor-specific Characteristics
 CHARACTERISTICS = {
     "Operation Mode": "3f0afd88-7770-46b0-b5e7-9fc099598964",
@@ -126,7 +126,7 @@ async def read_and_decode_anchor_data(address: str):
 
 async def main():
     # Thay bằng địa chỉ MAC của anchor DWM1001 của bạn
-    device_address = "AA:BB:CC:DD:EE:FF"  # Ví dụ, thay bằng địa chỉ thật
+    device_address = TAG_MAC  # Ví dụ, thay bằng địa chỉ thật
     await read_and_decode_anchor_data(device_address)
 
 if __name__ == "__main__":
