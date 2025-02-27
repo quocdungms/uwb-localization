@@ -1,182 +1,221 @@
 import asyncio
-from queue import PriorityQueue
-
-from bleak import BleakScanner, BleakClient
-import struct
-import socketio
 import json
-from datetime import datetime
+import time
+from bleak import BleakScanner, BleakClient
+import requests
+from typing import Dict, Optional
 
+# Định nghĩa UUID của các characteristic
+NETWORK_NODE_SERVICE_UUID = "680c21d9-c946-4c1f-9c11-baa1c21329e7"
+LABEL_UUID = "00002a00-0000-1000-8000-00805f9b34fb"  # Device Name (GAP)
+OPERATION_MODE_UUID = "3f0afd88-7770-46b0-b5e7-9fc099598964"
+LOCATION_DATA_MODE_UUID = "a02b947e-df97-4516-996a-1882521e0ead"
+LOCATION_DATA_UUID = "003bbdf2-c634-4b3d-ab56-7ec889b89a37"
 
-from location import *
-from utils import *
-sio = socketio.AsyncClient()
-SERVER_URL = "http://172.16.0.166:5000"
-
-# UUIDs
-LOCATION_DATA_UUID = "003bbdf2-c634-4b3d-ab56-7ec889b89a37"  # Location data UUID
-OPERATION_MODE_UUID = "3f0afd88-7770-46b0-b5e7-9fc099598964"  # Operation mode UUID
-LOCATION_DATA_MODE_UUID = "a02b947e-df97-4516-996a-1882521e0ead"  # Location data mode UUID for writing (0, 1, 2)
-READ_INTERVAL = 2  # Interval in seconds to read data
-
-
-async def send_data_to_server(data):
-    """Gửi dữ liệu vị trí lên server qua Socket.IO."""
+# Đọc danh sách module từ file module.json
+def load_modules() -> Dict:
     try:
-        await sio.emit("test send data to server", data)
-    except Exception as e:
-        print(f"Error sending data: {e}")
+        with open('module.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
+# Ghi danh sách module vào file module.json
+def save_modules(modules: Dict):
+    with open('module.json', 'w') as f:
+        json.dump(modules, f, indent=4)
 
-def bytearray_to_binary_list(byte_array):
-    return [format(byte, '08b') for byte in byte_array]
-
-
-def decode_raw_data(data):
-    """
-    Decode raw data based on the given format.
-    :param data: Raw byte array from the characteristic.
-    :return: Decoded data as a dictionary.
-    """
+# Gửi dữ liệu lên server qua RESTful API
+def send_to_server(data: Dict) -> int:
+    url = "http://your-server-url.com/api/endpoint"  # Thay bằng URL thực tế
+    headers = {'Content-Type': 'application/json'}
     try:
-        result = {}
-        data_type = data[0]
-        result["type"] = data_type
+        response = requests.post(url, json=data, headers=headers, timeout=5)
+        return response.status_code
+    except requests.RequestException as e:
+        print(f"Error sending to server: {e}")
+        return 500
 
-        if data_type == 2:  # Type 2: Position and Distances
-            result.update(decode_location_mode_2(data))
+# Giải mã operation mode để xác định type (tag/anchor)
+def decode_operation_mode(op_mode: bytes) -> str:
+    # Giả sử bit cao nhất của byte đầu tiên xác định tag/anchor
+    return 'tag' if (op_mode[0] & 0x80) == 0 else 'anchor'
 
-        elif data_type == 1:  # Type 1: Distances Only
-            result.update(decode_location_mode_1(data))
+# Mã hóa operation mode sang byte array
+def encode_operation_mode(tag_or_anchor: str) -> bytes:
+    return bytes([0x00, 0x00]) if tag_or_anchor == 'tag' else bytes([0x80, 0x00])
 
-        elif data_type == 0:  # Type 0: Position Only
-            if len(data) <= 13:
-                print("Invalid Type 0 data: Expected 13 bytes")
-                return None
-            result.update(decode_location_mode_0(data))
-        else:
-            print(f"Unknown data type: {data_type}")
+# Xử lý dữ liệu location
+def process_location_data(location_data: bytes) -> Dict:
+    mode = location_data[0]
+    if mode == 0:  # Position only (14 bytes)
+        x = int.from_bytes(location_data[1:5], 'little')
+        y = int.from_bytes(location_data[5:9], 'little')
+        z = int.from_bytes(location_data[9:13], 'little')
+        qf = location_data[13]
+        return {'mode': mode, 'position': {'x': x, 'y': y, 'z': z, 'qf': qf}}
+    # Xử lý mode khác nếu cần (ví dụ mode 2)
+    return {'mode': mode, 'position': None}
 
-        return result
+# Quét và kết nối ban đầu với các module
+async def scan_and_connect():
+    modules = load_modules()
+    devices = await BleakScanner.discover(timeout=10.0)
+    tasks = []
+    for device in devices:
+        mac = device.address
+        if mac in modules and modules[mac]['status'] == 'active':
+            tasks.append(connect_and_collect_data(mac, modules[mac]))
+    if tasks:
+        await asyncio.gather(*tasks)
 
+# Kết nối và thu thập dữ liệu từ module
+async def connect_and_collect_data(mac: str, module: Dict):
+    try:
+        async with BleakClient(mac, timeout=20.0) as client:
+            # Đọc thông tin từ module
+            label = await client.read_gatt_char(LABEL_UUID)
+            label = label.decode('utf-8')
+            op_mode = await client.read_gatt_char(OPERATION_MODE_UUID)
+            tag_or_anchor = decode_operation_mode(op_mode)
+            location_data_mode = await client.read_gatt_char(LOCATION_DATA_MODE_UUID)
+            location_data = await client.read_gatt_char(LOCATION_DATA_UUID)
+            location_info = process_location_data(location_data)
+            timestamp = time.time()
+
+            # Đóng gói dữ liệu
+            data = {
+                'name': module['name'],
+                'id': mac,
+                'operation': op_mode.hex(),
+                'location': location_info,
+                'status': 'active',
+                'time': timestamp
+            }
+            send_to_server(data)
+
+            # Cập nhật type vào module.json
+            module['type'] = tag_or_anchor
+            save_modules(load_modules())
+
+            # Nếu là tag, thiết lập notify
+            if tag_or_anchor == 'tag':
+                await setup_tag_notify(client, mac)
     except Exception as e:
-        print(f"Error decoding data: {e}")
-        return None
+        print(f"Error with module {mac}: {e}")
+        module['status'] = 'disable'
+        save_modules(load_modules())
+        send_to_server({'id': mac, 'status': 'disable', 'time': time.time()})
 
+# Thiết lập notify cho tag
+async def setup_tag_notify(client: BleakClient, mac: str):
+    last_position = None
+    last_send_time = 0
+    notify_interval_stationary = 10  # Giây, có thể tùy chỉnh
+    notify_interval_moving = 1  # Giây, có thể tùy chỉnh
+    movement_threshold = 100  # mm, ngưỡng để xác định chuyển động
 
-# async def write_value(client, value):
-#     """
-#     Write a single byte (0, 1, or 2) to the LOCATION_DATA_MODE_UUID characteristic.
-#     """
-#     try:
-#         byte_value = bytes([value])  # Convert integer to 1-byte format
-#         await client.write_gatt_char(LOCATION_DATA_MODE_UUID, byte_value)
-#         print(f"Successfully wrote {value} to {LOCATION_DATA_MODE_UUID}")
-#     except Exception as e:
-#         print(f"Failed to write value {value} to {LOCATION_DATA_MODE_UUID}: {e}")
+    async def handle_notify(sender: int, data: bytes):
+        nonlocal last_position, last_send_time
+        location_info = process_location_data(data)
+        timestamp = time.time()
+        position = location_info['position']
 
-async def periodic_read(device):
-    """
-    Periodically read data from the specified characteristics.
-    Reconnect to the device if disconnected.
-    :param device: BLEDevice instance.
-    """
-    filename = f"ble_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        # Xác định tag đứng yên hay di chuyển
+        is_moving = False
+        if last_position and position:
+            dx = abs(position['x'] - last_position['x'])
+            dy = abs(position['y'] - last_position['y'])
+            dz = abs(position['z'] - last_position['z'])
+            is_moving = (dx > movement_threshold or dy > movement_threshold or dz > movement_threshold)
+        last_position = position
 
+        # Xác định khoảng thời gian gửi dữ liệu
+        interval = notify_interval_moving if is_moving else notify_interval_stationary
+        if timestamp - last_send_time >= interval:
+            data = {
+                'id': mac,
+                'location': location_info,
+                'status': 'active',
+                'time': timestamp
+            }
+            send_to_server(data)
+            last_send_time = timestamp
+
+    await client.start_notify(LOCATION_DATA_UUID, handle_notify)
+
+# Kiểm tra trạng thái anchor mỗi 30 giây
+async def check_anchor_status():
     while True:
+        modules = load_modules()
+        tasks = []
+        for mac, module in modules.items():
+            if module.get('type') == 'anchor' and module['status'] == 'active':
+                tasks.append(check_single_anchor(mac, module))
+        if tasks:
+            await asyncio.gather(*tasks)
+        await asyncio.sleep(30)
+
+async def check_single_anchor(mac: str, module: Dict):
+    try:
+        async with BleakClient(mac, timeout=10.0) as client:
+            await client.read_gatt_char(OPERATION_MODE_UUID)
+            module['status'] = 'active'
+    except Exception:
+        module['status'] = 'disable'
+        send_to_server({'id': mac, 'status': 'disable', 'time': time.time()})
+    save_modules(load_modules())
+
+# Thêm module
+async def add_module(mac: str, operation_mode: str):
+    modules = load_modules()
+    if mac not in modules:
+        op_mode_bytes = bytes.fromhex(operation_mode)
+        modules[mac] = {
+            'name': f"Module_{mac[-6:]}",
+            'id': mac,
+            'type': decode_operation_mode(op_mode_bytes),
+            'status': 'active'
+        }
+        save_modules(modules)
+        # Ghi operation mode vào module
         try:
-            async with BleakClient(device.address) as client:
-                if not client.is_connected:
-                    print(f"Failed to connect to {device.name or 'Unknown Device'} ({device.address})")
-                    await asyncio.sleep(READ_INTERVAL)
-                    continue
-
-                print(f"Connected to {device.name or 'Unknown Device'} ({device.address})")
-
-                writeData = bytearray(b'\x02')
-                await client.write_gatt_char(LOCATION_DATA_MODE_UUID, writeData, response=True)
-                print("Ghi dữ liệu thành công!")
-                await client.disconnect()
-                await asyncio.sleep(2)
-                await client.connect()
-
-                while True:
-                    try:
-                        # Đọc dữ liệu như trước
-                        operation_mode_data = await client.read_gatt_char(OPERATION_MODE_UUID)
-                        location_mode_data = await client.read_gatt_char(LOCATION_DATA_MODE_UUID)
-                        data = await client.read_gatt_char(LOCATION_DATA_UUID)
-
-                        decoded_data = decode_raw_data(data)
-                        if decoded_data:
-                            # Ghi dữ liệu vào file txt thay vì in ra màn hình
-                            with open(filename, 'a', encoding='utf-8') as f:
-                                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                                f.write(f"[{timestamp}]\n")
-                                f.write(f"Raw Data from {LOCATION_DATA_UUID}: {data}\n")
-                                f.write(f"Decoded Data: {decoded_data}\n")
-                                f.write("===========================================\n\n")
-
-                            # Chỉ in thông báo cơ bản lên console
-                            print(f"[{timestamp}] Data saved to {filename}")
-
-                    except Exception as e:
-                        print(f"Error reading characteristic: {e}")
-                        break
-
-                    await asyncio.sleep(READ_INTERVAL)
-
+            async with BleakClient(mac) as client:
+                await client.write_gatt_char(OPERATION_MODE_UUID, op_mode_bytes)
         except Exception as e:
-            print(f"Reconnection failed for {device.name or 'Unknown Device'}: {e}")
-            print("Retrying connection...")
-            await asyncio.sleep(READ_INTERVAL)
+            print(f"Error adding module {mac}: {e}")
 
+# Sửa module
+async def update_module(mac: str, operation_mode: Optional[str] = None, location_data_mode: Optional[str] = None):
+    modules = load_modules()
+    if mac in modules:
+        try:
+            async with BleakClient(mac) as client:
+                if operation_mode:
+                    op_mode_bytes = bytes.fromhex(operation_mode)
+                    await client.write_gatt_char(OPERATION_MODE_UUID, op_mode_bytes)
+                    modules[mac]['type'] = decode_operation_mode(op_mode_bytes)
+                if location_data_mode:
+                    mode_bytes = bytes.fromhex(location_data_mode)
+                    await client.write_gatt_char(LOCATION_DATA_MODE_UUID, mode_bytes)
+            save_modules(modules)
+        except Exception as e:
+            print(f"Error updating module {mac}: {e}")
 
+# Xóa module
+def delete_module(mac: str):
+    modules = load_modules()
+    if mac in modules:
+        del modules[mac]
+        save_modules(modules)
+
+# Hàm chính
 async def main():
-    """Kết nối với server & bắt đầu quét thiết bị."""
-    try:
-        await sio.connect(SERVER_URL)
-        print("Connected to server")
-    except Exception as e:
-        print(f"Failed to connect: {e}")
-
-    """
-    Scan for BLE devices, allow the user to choose a device, write a value, and start periodic read.
-    """
-    while True:
-        print("\nScanning for devices...")
-        devices = await BleakScanner.discover()
-
-        dw_devices = [d for d in devices if d.name and "DWCE07" in d.name]
-
-        if not dw_devices:
-            continue
-
-        print(f"\nFound {len(dw_devices)} devices:")
-        for i, device in enumerate(dw_devices, 1):
-            print(f"{i}. {device.name} - {device.address}")
-
-        try:
-            selected_device = dw_devices[0]
-
-            # Connect to the device and write a value before periodic reading
-            async with BleakClient(selected_device.address) as client:
-                if not client.is_connected:
-                    print(f"Failed to connect to {selected_device.name} ({selected_device.address})")
-                    continue
-
-                # Ask user for a value to write
-                # user_input = input("Enter 0, 1, or 2 to write before starting periodic read: ").strip()
-                # if user_input in ["0", "1", "2"]:
-                #     await write_value(client, int(user_input))
-
-            print(f"\nStarting periodic read for device {selected_device.name} ({selected_device.address})...")
-            await periodic_read(selected_device)
-        except ValueError:
-            print("Invalid input! Please enter a valid number or 'r' to rescan.")
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-
+    tasks = [
+        asyncio.create_task(scan_and_connect()),
+        asyncio.create_task(check_anchor_status())
+    ]
+    await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
     asyncio.run(main())
