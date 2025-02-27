@@ -1,6 +1,6 @@
 import asyncio
 from bleak import BleakClient
-from init import *
+
 # Định nghĩa UUID của các Anchor-specific Characteristics
 CHARACTERISTICS = {
     "Operation Mode": "3f0afd88-7770-46b0-b5e7-9fc099598964",
@@ -13,8 +13,8 @@ CHARACTERISTICS = {
 
 def decode_operation_mode(data: bytes) -> dict:
     """Giải mã Operation Mode (2 bytes)."""
-    if len(data) != 2:
-        raise ValueError("Operation Mode phải là 2 byte.")
+    if len(data) < 2:
+        return {"error": "Dữ liệu quá ngắn, cần ít nhất 2 byte."}
     byte1 = data[0]
     byte2 = data[1]
     initiator_enable = (byte2 & 0x80) != 0
@@ -24,38 +24,41 @@ def decode_operation_mode(data: bytes) -> dict:
     }
 
 def decode_device_info(data: bytes) -> dict:
-    """Giải mã Device Info (29 bytes)."""
-    if len(data) != 29:
-        raise ValueError("Device Info phải là 29 byte.")
-    operation_flags = data[28]
+    """Giải mã Device Info (tối thiểu 29 bytes, linh hoạt với dữ liệu dài hơn)."""
+    if len(data) < 29:
+        return {"error": "Dữ liệu quá ngắn, cần ít nhất 29 byte."}
+    # Chuyển bytearray thành bytes nếu cần
+    data = bytes(data)
+    operation_flags = data[28] if len(data) >= 29 else 0
     is_bridge = (operation_flags & 0x80) != 0
     return {
-        "node_id": data[0:8].int(),
+        "node_id": data[0:8].hex(),
         "hw_version": int.from_bytes(data[8:12], "little"),
         "fw1_version": int.from_bytes(data[12:16], "little"),
         "fw2_version": int.from_bytes(data[16:20], "little"),
         "fw1_checksum": int.from_bytes(data[20:24], "little"),
         "fw2_checksum": int.from_bytes(data[24:28], "little"),
         "is_bridge": is_bridge,
+        "extra_data": data[29:].hex() if len(data) > 29 else "",
         "raw_hex": data.hex()
     }
 
 def decode_persisted_position(data: bytes) -> dict:
     """Giải mã Persisted Position (13 bytes)."""
     if len(data) != 13:
-        raise ValueError("Persisted Position phải là 13 byte.")
+        return {"error": f"Dữ liệu không đúng 13 byte, nhận được {len(data)} byte."}
     return {
-        "x": int.from_bytes(data[0:4], "little", signed=True),  # mm
-        "y": int.from_bytes(data[4:8], "little", signed=True),  # mm
-        "z": int.from_bytes(data[8:12], "little", signed=True), # mm
-        "quality_factor": data[12],                             # 1-100
+        "x": int.from_bytes(data[0:4], "little", signed=True),
+        "y": int.from_bytes(data[4:8], "little", signed=True),
+        "z": int.from_bytes(data[8:12], "little", signed=True),
+        "quality_factor": data[12],
         "raw_hex": data.hex()
     }
 
 def decode_mac_stats(data: bytes) -> dict:
     """Giải mã MAC Stats (4 bytes)."""
     if len(data) != 4:
-        raise ValueError("MAC Stats phải là 4 byte.")
+        return {"error": f"Dữ liệu không đúng 4 byte, nhận được {len(data)} byte."}
     return {
         "mac_stats": int.from_bytes(data, "little"),
         "raw_hex": data.hex()
@@ -64,7 +67,7 @@ def decode_mac_stats(data: bytes) -> dict:
 def decode_cluster_info(data: bytes) -> dict:
     """Giải mã Cluster Info (5 bytes)."""
     if len(data) != 5:
-        raise ValueError("Cluster Info phải là 5 byte.")
+        return {"error": f"Dữ liệu không đúng 5 byte, nhận được {len(data)} byte."}
     return {
         "seat_number": data[0],
         "cluster_map": int.from_bytes(data[1:3], "little"),
@@ -75,7 +78,7 @@ def decode_cluster_info(data: bytes) -> dict:
 def decode_anchor_list(data: bytes) -> dict:
     """Giải mã Anchor List (33 bytes)."""
     if len(data) != 33:
-        raise ValueError("Anchor List phải là 33 byte.")
+        return {"error": f"Dữ liệu không đúng 33 byte, nhận được {len(data)} byte."}
     count = data[0]
     anchor_ids = [data[i:i+2].hex() for i in range(1, min(count * 2 + 1, len(data)), 2)]
     return {
@@ -126,7 +129,7 @@ async def read_and_decode_anchor_data(address: str):
 
 async def main():
     # Thay bằng địa chỉ MAC của anchor DWM1001 của bạn
-    device_address = "EB:52:53:F5:D5:90"  # Ví dụ, thay bằng địa chỉ thật
+    device_address = "C8:70:52:60:9F:38"  # Ví dụ, thay bằng địa chỉ thật
     await read_and_decode_anchor_data(device_address)
 
 if __name__ == "__main__":
