@@ -30,7 +30,7 @@ def decode_device_info(data: bytes) -> dict:
     operation_flags = data[28]
     is_bridge = (operation_flags & 0x80) != 0
     return {
-        "node_id": data[0:8].hex(),
+        "node_id": data[0:8].int(),
         "hw_version": int.from_bytes(data[8:12], "little"),
         "fw1_version": int.from_bytes(data[12:16], "little"),
         "fw2_version": int.from_bytes(data[16:20], "little"),
@@ -126,7 +126,7 @@ async def read_and_decode_anchor_data(address: str):
 
 async def main():
     # Thay bằng địa chỉ MAC của anchor DWM1001 của bạn
-    device_address = "C8:70:52:60:9F:38"  # Ví dụ, thay bằng địa chỉ thật
+    device_address = "EB:52:53:F5:D5:90"  # Ví dụ, thay bằng địa chỉ thật
     await read_and_decode_anchor_data(device_address)
 
 if __name__ == "__main__":
