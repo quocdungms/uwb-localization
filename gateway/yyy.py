@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 import requests
@@ -60,23 +61,91 @@ async def get_module_data(mac_address):
     return None
 
 
+# Nhận notify dữ liệu location
+async def process_location_notify(mac_address, name, location_uuid):
+    async with BleakClient(mac_address) as client:
+        if not await client.is_connected():
+            print(f"Failed to connect to {name} ({mac_address})")
+            return
+
+        print(f"Connected to {name} ({mac_address}), subscribing to location data...")
+
+        # Lưu trữ 5 giá trị location gần nhất
+        location_buffer = []
+
+        def notification_handler(_, data):
+            location_decoded = decode_location_data(data)
+            if location_decoded and "X" in location_decoded:
+                location_buffer.append(location_decoded)
+                if len(location_buffer) > 5:
+                    location_buffer.pop(0)  # Giữ tối đa 5 giá trị gần nhất
+
+        # Đăng ký notify
+        await client.start_notify(location_uuid, notification_handler)
+
+        while True:
+            await asyncio.sleep(1)  # Cứ mỗi giây kiểm tra buffer
+            if len(location_buffer) >= 5:
+                avg_x = sum(loc["X"] for loc in location_buffer) / 5
+                avg_y = sum(loc["Y"] for loc in location_buffer) / 5
+                avg_z = sum(loc["Z"] for loc in location_buffer) / 5
+                avg_quality = sum(loc["Quality Factor"] for loc in location_buffer) // 5
+
+                timestamp = datetime.now().isoformat()
+                data = {
+                    "name": name,
+                    "id": mac_address,
+                    "location": {
+                        "X": avg_x,
+                        "Y": avg_y,
+                        "Z": avg_z,
+                        "Quality Factor": avg_quality
+                    },
+                    "status": "active",
+                    "time": timestamp
+                }
+
+                send_to_server(data)
+
+
 # Chương trình chính
 async def main():
     modules = load_modules()
+    tasks = []
 
     for module in modules:
-        mac = module["id"]
-        name = module["name"]
+        if module["type"] == "tag":  # Chỉ nhận notify từ TAG
+            mac = module["id"]
+            name = module["name"]
+            location_uuid = LOCATION_DATA_UUID  # Cần thay UUID đúng
+            tasks.append(process_location_notify(mac, name, location_uuid))
 
-        print(f"Scanning {name} ({mac})...")
-        data = await get_module_data(mac)
-
-        if data:
-            data["name"] = name
-            send_to_server(data)
-
+    await asyncio.gather(*tasks)
 
 # Chạy chương trình
-import asyncio
-
 asyncio.run(main())
+
+
+
+# Chương trình chính
+# async def main():
+#     modules = load_modules()
+#
+#     for module in modules:
+#         mac = module["id"]
+#         name = module["name"]
+#
+#         print(f"Scanning {name} ({mac})...")
+#         data = await get_module_data(mac)
+#
+#         if data:
+#             data["name"] = name
+#             send_to_server(data)
+#
+#
+# # Chạy chương trình
+# import asyncio
+#
+# asyncio.run(main())
+
+
