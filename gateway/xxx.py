@@ -57,7 +57,7 @@ async def scan_and_connect():
 
     for device in devices:
         # Thay bằng điều kiện để tìm thiết bị của bạn (tên hoặc địa chỉ)
-        if device.name == "DWC511":  # Thay bằng tên thiết bị thực tế
+        if device.name == "DWD29A":  # Thay bằng tên thiết bị thực tế
             target_device = device
             break
 
