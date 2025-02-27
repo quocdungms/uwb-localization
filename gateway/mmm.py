@@ -110,5 +110,5 @@ async def main():
         await connect_and_read(selected_device)
 
 
-if __name__ == "_main_":
+if __name__ == "__main__":
     asyncio.run(main())
