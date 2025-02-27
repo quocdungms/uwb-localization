@@ -30,7 +30,7 @@ def save_modules(modules: Dict):
 
 # Gửi dữ liệu lên server
 def send_to_server(data: Dict) -> int:
-    url = "http://localhost:3000/api/data"  # URL mẫu cho server Node.js
+    url = sv_url # URL mẫu cho server Node.js
     headers = {'Content-Type': 'application/json'}
     try:
         response = requests.post(url, json=data, headers=headers, timeout=5)
