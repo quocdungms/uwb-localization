@@ -1,10 +1,15 @@
 import asyncio
 import json
+import os
 import time
 from bleak import BleakScanner, BleakClient
 import requests
 from typing import Dict, Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
+sv_url = os.getenv("SV_URL") + ":" + os.getenv("PORT") + "/" + os.getenv("TOPIC")
 # UUID của các characteristic
 OPERATION_MODE_UUID = "3f0afd88-7770-46b0-b5e7-9fc099598964"
 LOCATION_DATA_MODE_UUID = "a02b947e-df97-4516-996a-1882521e0ead"
