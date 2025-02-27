@@ -5,6 +5,12 @@ from bleak import BleakScanner, BleakClient
 import requests
 from typing import Dict, Optional
 
+from dotenv import load_dotenv
+import os
+
+
+load_dotenv()
+SV_URL = os.getenv("SV_URL") + ":" + os.getenv("PORT") + "/" + os.getenv("TOPIC")
 # Định nghĩa UUID của các characteristic
 NETWORK_NODE_SERVICE_UUID = "680c21d9-c946-4c1f-9c11-baa1c21329e7"
 LABEL_UUID = "00002a00-0000-1000-8000-00805f9b34fb"  # Device Name (GAP)
@@ -27,7 +33,7 @@ def save_modules(modules: Dict):
 
 # Gửi dữ liệu lên server qua RESTful API
 def send_to_server(data: Dict) -> int:
-    url = "http://your-server-url.com/api/endpoint"  # Thay bằng URL thực tế
+    url = SV_URL  # Thay bằng URL thực tế
     headers = {'Content-Type': 'application/json'}
     try:
         response = requests.post(url, json=data, headers=headers, timeout=5)

@@ -1,0 +1,33 @@
+{
+    "E7:E1:0F:DA:2D:82": {
+        "name": "DWC60E",
+        "id": "E7:E1:0F:DA:2D:82",
+        "type": "tag",
+        "status": "active"
+    },
+    "C8:70:52:60:9F:38": {
+        "name": "DWC511",
+        "id": "C8:70:52:60:9F:38",
+        "type": "anchor",
+        "status": "active"
+    },
+    "D7:7A:01:92:9B:DB": {
+        "name": "DWC60E",
+        "id": "DWD29A",
+        "type": "anchor",
+        "status": "active"
+    },
+    "EB:52:53:F5:D5:90": {
+        "name": "DWCE07",
+        "id": "EB:52:53:F5:D5:90",
+        "type": "anchor",
+        "status": "active"
+    },
+    "EB:C3:F1:BC:24:DD": {
+        "name": "DWD40F",
+        "id": "EB:C3:F1:BC:24:DD",
+        "type": "anchor",
+        "status": "active"
+    }
+
+}
