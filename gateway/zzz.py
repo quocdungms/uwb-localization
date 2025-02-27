@@ -1,136 +1,171 @@
 import asyncio
-from bleak import BleakClient
+import json
+import os
+import time
+from bleak import BleakScanner, BleakClient
+import requests
+from typing import Dict, Optional
 
-# Định nghĩa UUID của các Anchor-specific Characteristics
-CHARACTERISTICS = {
-    "Operation Mode": "3f0afd88-7770-46b0-b5e7-9fc099598964",
-    "Device Info": "1e63b1eb-d4ed-444e-af54-c1e965192501",
-    "Persisted Position": "fof26c9b-2c8c-49ac-ab60-fe03def1b40c",
-    "MAC Stats": "28d01d60-89de-4bfa-b6e9-651ba596232c",
-    "Cluster Info": "17b1613e-98f2-4436-bcde-23af17a10c72",
-    "Anchor List": "5b10c428-af2f-486f-aee1-9dbd79b6bccb"
-}
+from dotenv import load_dotenv
 
-def decode_operation_mode(data: bytes) -> dict:
-    """Giải mã Operation Mode (2 bytes)."""
-    if len(data) < 2:
-        return {"error": "Dữ liệu quá ngắn, cần ít nhất 2 byte."}
-    byte1 = data[0]
-    byte2 = data[1]
-    initiator_enable = (byte2 & 0x80) != 0
-    return {
-        "initiator_enable": initiator_enable,
-        "raw_hex": data.hex()
-    }
+load_dotenv()
+sv_url = os.getenv("SV_URL") + ":" + os.getenv("PORT") + "/" + os.getenv("TOPIC")
+# UUID của các characteristic
+OPERATION_MODE_UUID = "3f0afd88-7770-46b0-b5e7-9fc099598964"
+LOCATION_DATA_MODE_UUID = "a02b947e-df97-4516-996a-1882521e0ead"
+LOCATION_DATA_UUID = "003bbdf2-c634-4b3d-ab56-7ec889b89a37"
+LABEL_UUID = "00002a00-0000-1000-8000-00805f9b34fb"
 
-def decode_device_info(data: bytes) -> dict:
-    """Giải mã Device Info (tối thiểu 29 bytes, linh hoạt với dữ liệu dài hơn)."""
-    if len(data) < 29:
-        return {"error": "Dữ liệu quá ngắn, cần ít nhất 29 byte."}
-    # Chuyển bytearray thành bytes nếu cần
-    data = bytes(data)
-    operation_flags = data[28] if len(data) >= 29 else 0
-    is_bridge = (operation_flags & 0x80) != 0
-    return {
-        "node_id": data[0:8].hex(),
-        "hw_version": int.from_bytes(data[8:12], "little"),
-        "fw1_version": int.from_bytes(data[12:16], "little"),
-        "fw2_version": int.from_bytes(data[16:20], "little"),
-        "fw1_checksum": int.from_bytes(data[20:24], "little"),
-        "fw2_checksum": int.from_bytes(data[24:28], "little"),
-        "is_bridge": is_bridge,
-        "extra_data": data[29:].hex() if len(data) > 29 else "",
-        "raw_hex": data.hex()
-    }
-
-def decode_persisted_position(data: bytes) -> dict:
-    """Giải mã Persisted Position (13 bytes)."""
-    if len(data) != 13:
-        return {"error": f"Dữ liệu không đúng 13 byte, nhận được {len(data)} byte."}
-    return {
-        "x": int.from_bytes(data[0:4], "little", signed=True),
-        "y": int.from_bytes(data[4:8], "little", signed=True),
-        "z": int.from_bytes(data[8:12], "little", signed=True),
-        "quality_factor": data[12],
-        "raw_hex": data.hex()
-    }
-
-def decode_mac_stats(data: bytes) -> dict:
-    """Giải mã MAC Stats (4 bytes)."""
-    if len(data) != 4:
-        return {"error": f"Dữ liệu không đúng 4 byte, nhận được {len(data)} byte."}
-    return {
-        "mac_stats": int.from_bytes(data, "little"),
-        "raw_hex": data.hex()
-    }
-
-def decode_cluster_info(data: bytes) -> dict:
-    """Giải mã Cluster Info (5 bytes)."""
-    if len(data) != 5:
-        return {"error": f"Dữ liệu không đúng 5 byte, nhận được {len(data)} byte."}
-    return {
-        "seat_number": data[0],
-        "cluster_map": int.from_bytes(data[1:3], "little"),
-        "cluster_neighbor_map": int.from_bytes(data[3:5], "little"),
-        "raw_hex": data.hex()
-    }
-
-def decode_anchor_list(data: bytes) -> dict:
-    """Giải mã Anchor List (33 bytes)."""
-    if len(data) != 33:
-        return {"error": f"Dữ liệu không đúng 33 byte, nhận được {len(data)} byte."}
-    count = data[0]
-    anchor_ids = [data[i:i+2].hex() for i in range(1, min(count * 2 + 1, len(data)), 2)]
-    return {
-        "count": count,
-        "anchor_ids": anchor_ids,
-        "raw_hex": data.hex()
-    }
-
-DECODERS = {
-    "3f0afd88-7770-46b0-b5e7-9fc099598964": decode_operation_mode,
-    "1e63b1eb-d4ed-444e-af54-c1e965192501": decode_device_info,
-    "fof26c9b-2c8c-49ac-ab60-fe03def1b40c": decode_persisted_position,
-    "28d01d60-89de-4bfa-b6e9-651ba596232c": decode_mac_stats,
-    "17b1613e-98f2-4436-bcde-23af17a10c72": decode_cluster_info,
-    "5b10c428-af2f-486f-aee1-9dbd79b6bccb": decode_anchor_list
-}
-
-async def read_and_decode_anchor_data(address: str):
-    """Đọc và giải mã dữ liệu từ tất cả Anchor-specific Characteristics."""
+# Đọc và ghi file module.json
+def load_modules() -> Dict:
     try:
-        async with BleakClient(address) as client:
-            if not client.is_connected:
-                print(f"Không thể kết nối đến thiết bị {address}")
-                return
+        with open('module.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
-            print(f"Đã kết nối đến thiết bị {address}")
+def save_modules(modules: Dict):
+    with open('module.json', 'w') as f:
+        json.dump(modules, f, indent=4)
 
-            for name, uuid in CHARACTERISTICS.items():
-                try:
-                    # Đọc dữ liệu từ characteristic
-                    data = await client.read_gatt_char(uuid)
-                    print(f"\n{name} ({uuid}):")
-                    print(f"Dữ liệu thô (hex): {data.hex()}")
+# Gửi dữ liệu lên server
+def send_to_server(data: Dict) -> int:
+    url = sv_url  # URL mẫu cho server Node.js
+    headers = {'Content-Type': 'application/json'}
+    try:
+        response = requests.post(url, json=data, headers=headers, timeout=5)
+        print(f"Phản hồi từ server: {response.text}")
+        return response.status_code
+    except requests.RequestException as e:
+        print(f"Error sending to server: {e}")
+        return 500
 
-                    # Giải mã dữ liệu
-                    decoder = DECODERS.get(uuid)
-                    if decoder:
-                        decoded = decoder(data)
-                        print(f"Dữ liệu giải mã: {decoded}")
-                    else:
-                        print("Không có hàm giải mã cho UUID này.")
+# Giải mã Operation Mode
+def decode_operation_mode(op_mode: bytes) -> str:
+    return 'tag' if (op_mode[0] & 0x80) == 0 else 'anchor'
 
-                except Exception as e:
-                    print(f"Lỗi khi đọc {name} ({uuid}): {e}")
+# Xử lý dữ liệu Location
+def process_location_data(location_data: bytes) -> Dict:
+    mode = location_data[0]
+    if mode == 0 and len(location_data) >= 14:  # Position only (14 bytes)
+        x = int.from_bytes(location_data[1:5], 'little', signed=True)
+        y = int.from_bytes(location_data[5:9], 'little', signed=True)
+        z = int.from_bytes(location_data[9:13], 'little', signed=True)
+        qf = location_data[13]
+        return {'mode': mode, 'position': {'x': x, 'y': y, 'z': z, 'qf': qf}}
+    return {'mode': mode, 'position': None}
 
-    except Exception as e:
-        print(f"Lỗi khi kết nối đến thiết bị {address}: {e}")
+# Quét và kết nối với giới hạn đồng thời
+async def scan_and_connect(semaphore: asyncio.Semaphore):
+    modules = load_modules()
+    devices = await BleakScanner.discover(timeout=10.0)
+    tasks = []
+    for device in devices:
+        mac = device.address
+        if mac in modules and modules[mac]['status'] == 'active':
+            tasks.append(connect_and_collect_data(mac, modules[mac], semaphore))
+    if tasks:
+        await asyncio.gather(*tasks)
+
+async def connect_and_collect_data(mac: str, module: Dict, semaphore: asyncio.Semaphore):
+    async with semaphore:  # Giới hạn số lượng kết nối đồng thời
+        retries = 3
+        for attempt in range(retries):
+            try:
+                async with BleakClient(mac, timeout=20.0) as client:
+                    label = await client.read_gatt_char(LABEL_UUID)
+                    label = label.decode('utf-8')
+                    op_mode = await client.read_gatt_char(OPERATION_MODE_UUID)
+                    tag_or_anchor = decode_operation_mode(op_mode)
+                    location_data_mode = await client.read_gatt_char(LOCATION_DATA_MODE_UUID)
+                    location_data = await client.read_gatt_char(LOCATION_DATA_UUID)
+                    location_info = process_location_data(location_data)
+                    timestamp = time.time()
+
+                    data = {
+                        'name': module['name'],
+                        'id': mac,
+                        'operation': op_mode.hex(),
+                        'location': location_info,
+                        'status': 'active',
+                        'time': timestamp
+                    }
+                    send_to_server(data)
+
+                    module['type'] = tag_or_anchor
+                    save_modules(load_modules())
+
+                    if tag_or_anchor == 'tag':
+                        await setup_tag_notify(client, mac)
+                    break  # Thoát vòng lặp nếu thành công
+            except Exception as e:
+                print(f"Error with module {mac}: {e}")
+                if attempt < retries - 1:
+                    await asyncio.sleep(1)  # Chờ trước khi thử lại
+                else:
+                    module['status'] = 'disable'
+                    save_modules(load_modules())
+                    send_to_server({'id': mac, 'status': 'disable', 'time': time.time()})
+
+async def setup_tag_notify(client: BleakClient, mac: str):
+    last_position = None
+    last_send_time = 0
+    notify_interval_stationary = 10
+    notify_interval_moving = 1
+    movement_threshold = 100
+
+    async def handle_notify(sender: int, data: bytes):
+        nonlocal last_position, last_send_time
+        location_info = process_location_data(data)
+        timestamp = time.time()
+        position = location_info['position']
+
+        is_moving = False
+        if last_position and position:
+            dx = abs(position['x'] - last_position['x'])
+            dy = abs(position['y'] - last_position['y'])
+            dz = abs(position['z'] - last_position['z'])
+            is_moving = (dx > movement_threshold or dy > movement_threshold or dz > movement_threshold)
+        last_position = position
+
+        interval = notify_interval_moving if is_moving else notify_interval_stationary
+        if timestamp - last_send_time >= interval:
+            data = {'id': mac, 'location': location_info, 'status': 'active', 'time': timestamp}
+            send_to_server(data)
+            last_send_time = timestamp
+
+    await client.start_notify(LOCATION_DATA_UUID, handle_notify)
+
+async def check_anchor_status(semaphore: asyncio.Semaphore):
+    while True:
+        modules = load_modules()
+        tasks = []
+        for mac, module in modules.items():
+            if module.get('type') == 'anchor' and module['status'] == 'active':
+                tasks.append(check_single_anchor(mac, module, semaphore))
+        if tasks:
+            await asyncio.gather(*tasks)
+        await asyncio.sleep(30)
+
+async def check_single_anchor(mac: str, module: Dict, semaphore: asyncio.Semaphore):
+    async with semaphore:
+        try:
+            async with BleakClient(mac, timeout=10.0) as client:
+                await client.read_gatt_char(OPERATION_MODE_UUID)
+                module['status'] = 'active'
+        except Exception:
+            module['status'] = 'disable'
+            send_to_server({'id': mac, 'status': 'disable', 'time': time.time()})
+        save_modules(load_modules())
 
 async def main():
-    # Thay bằng địa chỉ MAC của anchor DWM1001 của bạn
-    device_address = "D7:7A:01:92:9B:DB"  # Ví dụ, thay bằng địa chỉ thật
-    await read_and_decode_anchor_data(device_address)
+    # Giới hạn tối đa 2 kết nối đồng thời
+    semaphore = asyncio.Semaphore(2)
+    tasks = [
+        asyncio.create_task(scan_and_connect(semaphore)),
+        asyncio.create_task(check_anchor_status(semaphore))
+    ]
+    await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
     asyncio.run(main())
