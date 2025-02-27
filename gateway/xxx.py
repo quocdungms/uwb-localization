@@ -38,7 +38,7 @@ async def decode_device_info(data):
         return None
 
     try:
-        node_id = data[0:8].hex()
+        node_id = int.from_bytes(data[0:8], byteorder='little')
         hw_version = int.from_bytes(data[8:12], byteorder='little')
         fw1_version = int.from_bytes(data[12:16], byteorder='little')
         fw2_version = int.from_bytes(data[16:20], byteorder='little')
