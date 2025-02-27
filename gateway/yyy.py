@@ -10,7 +10,7 @@ from location import *
 load_dotenv()
 sv_url = os.getenv("SV_URL") + ":" + os.getenv("PORT") + "/" + os.getenv("TOPIC")
 # Đọc danh sách module từ file JSON
-def load_modules(filename="module.json"):
+def load_modules(filename="md.json"):
     with open(filename, "r") as f:
         return json.load(f)
 
