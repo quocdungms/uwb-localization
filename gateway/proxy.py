@@ -59,8 +59,8 @@ async def enable_proxy_notifications():
             print(f"Connected to {DEVICE_ADDRESS}")
 
             # Tăng MTU (nếu được hỗ trợ bởi thiết bị)
-            mtu = await client.request_mtu(128)
-            print(f"MTU set to: {mtu} bytes")
+            # mtu = await client.request_mtu(128)
+            # print(f"MTU set to: {mtu} bytes")
 
             # Kiểm tra kết nối
             if not client.is_connected:
