@@ -2,7 +2,8 @@ import asyncio
 import struct
 from bleak import BleakClient
 
-from init import UPDATE_RATE_UUID
+from init import UPDATE_RATE_UUID, TAG_MAC
+
 
 # Hàm đọc và giải mã Update Rate
 async def read_update_rate(address):
@@ -34,7 +35,7 @@ async def read_update_rate(address):
 # Hàm chính
 async def main():
     # Thay bằng địa chỉ BLE của module DWM1001 của bạn
-    module_address = "EB:52:53:F5:D5:90"  # Ví dụ
+    module_address = TAG_MAC  # Ví dụ
     await read_update_rate(module_address)
 
 
