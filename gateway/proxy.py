@@ -3,7 +3,7 @@ from bleak import BleakClient, BleakScanner
 import struct
 from init import TAG_MAC
 # Địa chỉ MAC của module DWM1001 (thay bằng địa chỉ thực tế của bạn)
-DEVICE_ADDRESS =  TAG_MAC # Ví dụ: "00:11:22:33:44:55"
+DEVICE_ADDRESS =  "D7:7A:01:92:9B:DB" # Ví dụ: "00:11:22:33:44:55"
 
 # UUID của service và characteristic
 SERVICE_UUID = "680c21d9-c946-4c1f-9c11-baa1c21329e7"
