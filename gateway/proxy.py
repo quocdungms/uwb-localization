@@ -73,7 +73,7 @@ async def enable_proxy_notifications():
 
             # Chờ thông báo trong 60 giây
             print("Waiting for notifications...")
-            await asyncio.sleep(60)  # Chạy trong 60 giây
+            await asyncio.sleep(600)  # Chạy trong 60 giây
 
             # Tắt notification trước khi ngắt kết nối (tùy chọn)
             await client.stop_notify(PROXY_POSITIONS_UUID)
