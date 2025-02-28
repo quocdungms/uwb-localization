@@ -33,7 +33,7 @@ async def setup_notifications(address):
             print(f"Đã đăng ký notification cho {LOCATION_DATA_UUID}")
 
             # Giữ kết nối trong 60 giây để nhận dữ liệu
-            await asyncio.sleep(600)
+            await asyncio.sleep(6000)
 
             # Dừng notification (tùy chọn)
             await client.stop_notify(LOCATION_DATA_UUID)
