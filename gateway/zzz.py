@@ -4,7 +4,7 @@ from init import *
 
 # Địa chỉ MAC hoặc UUID của thiết bị BLE
 DEVICE_ADDRESS = TAG_MAC  # Thay bằng địa chỉ thiết bị BLE của bạn
-BATTERY_CHARACTERISTIC_UUID = "00002a01-0000-1000-8000-00805f9b34fb"
+BATTERY_CHARACTERISTIC_UUID = "00002a04-0000-1000-8000-00805f9b34fb"
 
 async def get_battery_level(address):
     async with BleakClient(address) as client:
