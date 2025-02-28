@@ -12,3 +12,7 @@ def raw_to_bits(data):
     return bit_string.strip()
 
 
+def decode_operation_mode(op_mode: bytes) -> str:
+    return 'tag' if (op_mode[0] & 0x80) == 0 else 'anchor'
+
+

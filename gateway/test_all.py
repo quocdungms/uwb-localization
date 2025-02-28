@@ -12,7 +12,7 @@ load_dotenv()
 sv_url = os.getenv("SV_URL") + ":" + os.getenv("PORT") + "/" + os.getenv("TOPIC")
 # UUID của các characteristic
 OPERATION_MODE_UUID = "3f0afd88-7770-46b0-b5e7-9fc099598964"
-LOCATION_DATA_MODE_UUID = "a02b947e-df97-4516-996a-1882521e0ead"
+LOCATION_DATA_MODE_UUID = "a02b 947e-df97-4516-996a-1882521e0ead"
 LOCATION_DATA_UUID = "003bbdf2-c634-4b3d-ab56-7ec889b89a37"
 LABEL_UUID = "00002a00-0000-1000-8000-00805f9b34fb"
 
