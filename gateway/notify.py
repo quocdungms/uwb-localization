@@ -45,7 +45,7 @@ async def setup_notifications(address):
 # Hàm chính
 async def main():
 
-    module_address = "EB:52:53:F5:D5:90"
+    module_address = "E9:82:21:9E:C8:8F"
     await setup_notifications(module_address)
 
 if __name__ == "__main__":
