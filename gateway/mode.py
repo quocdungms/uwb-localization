@@ -21,7 +21,7 @@ async def set_location_data_mode_to_zero(address):
             print(f"Đã kết nối đến thiết bị {address}")
 
             # Giá trị mode 0 dưới dạng bytes (1 byte)
-            mode_zero = bytes([0x02])
+            mode_zero = bytes([0x00])
 
             # Ghi giá trị mode 0 vào characteristic
             await client.write_gatt_char(LOCATION_DATA_MODE_UUID, mode_zero)
