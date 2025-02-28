@@ -37,7 +37,7 @@ async def set_location_data_mode_to_zero(address):
 # Hàm chạy chính
 async def main():
     # Thay bằng địa chỉ MAC của thiết bị DWM1001 của bạn
-    device_address = TAG_MAC  # Ví dụ, thay bằng địa chỉ thật
+    device_address = "E9:82:21:9E:C8:8F"  # Ví dụ, thay bằng địa chỉ thật
     await set_location_data_mode_to_zero(device_address)
 
 if __name__ == "__main__":
