@@ -48,7 +48,7 @@ async def setup_notifications(address):
 async def main():
 
     # module_address = TAG_MAC
-    module_address = TAG_MAC
+    module_address = "C8:70:52:60:9F:38"
     await setup_notifications(module_address)
 
 if __name__ == "__main__":
