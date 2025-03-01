@@ -167,25 +167,61 @@ async def handle_tag(module: Dict):
 
 # Xử lý module anchor (đọc dữ liệu một lần) với semaphore
 async def handle_anchor(module: Dict):
-    async with semaphore:
+    async with semaphore:  # Giả sử semaphore đã được định nghĩa ở ngoài
         mac = module["id"]
         name = module["name"]
         print(f"Đang kết nối tới anchor {name} ({mac})...")
-        try:
-            async with BleakClient(mac) as client:
-                if not client.is_connected:
-                    print(f"Kết nối tới anchor {name} thất bại")
+
+        # Thiết lập số lần thử kết nối
+        retry_count = 3
+        client = None
+
+        # Thử kết nối tối đa 3 lần
+        while retry_count > 0:
+            try:
+                client = BleakClient(mac)
+                await client.connect()
+                print(f"Đã kết nối tới anchor {name} sau {3 - retry_count + 1} lần thử")
+                break  # Thoát vòng lặp nếu kết nối thành công
+            except BleakError as e:
+                print(f"Lỗi kết nối tới anchor {name}: {e}")
+                retry_count -= 1
+                if retry_count > 0:
+                    print(f"Thử lại sau 3 giây... ({retry_count} lần thử còn lại)")
+                    await asyncio.sleep(3)
+                else:
+                    print(f"Không thể kết nối tới anchor {name} sau 3 lần thử")
+                    # Gửi payload với status "disable" nếu hết lượt thử
+                    tz = pytz.timezone('Asia/Ho_Chi_Minh')
+                    current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+                    payload = {
+                        "name": name,
+                        "id": mac,
+                        "type": "unknown",
+                        "operation": "unknown",
+                        "location": "unknown",
+                        "status": "disable",
+                        "time": current_time
+                    }
+                    await send_to_api(payload)  # Giả sử hàm này đã được định nghĩa
                     return
-                print(f"Đã kết nối tới anchor {name}")
-                label = await client.read_gatt_char(LABEL_CHAR_UUID)
+
+        # Nếu kết nối thành công, đọc dữ liệu và xử lý
+        if client and client.is_connected:
+            try:
+                label = await client.read_gatt_char(LABEL_CHAR_UUID)  # UUID giả định
                 operation_mode = await client.read_gatt_char(OPERATION_MODE_CHAR_UUID)
                 location_data = await client.read_gatt_char(LOCATION_DATA_CHAR_UUID)
-                decoded_type = decode_operation_mode(operation_mode)
-                operation_hex = bytes_to_hex(operation_mode)
-                location_hex = process_location_data(location_data)
+
+                decoded_type = decode_operation_mode(operation_mode)  # Giả sử hàm này đã định nghĩa
+                operation_hex = bytes_to_hex(operation_mode)  # Giả sử hàm này đã định nghĩa
+                location_hex = process_location_data(location_data)  # Giả sử hàm này đã định nghĩa
+
                 tz = pytz.timezone('Asia/Ho_Chi_Minh')
                 current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
                 name = label.decode("utf-8", errors="ignore") if label else name
+
+                # Tạo payload với status "active"
                 payload = {
                     "name": name,
                     "id": mac,
@@ -196,23 +232,27 @@ async def handle_anchor(module: Dict):
                     "time": current_time
                 }
                 await send_to_api(payload)
-        except BleakError as e:
-            print(f"Lỗi BLE với anchor {name}: {e}")
-            tz = pytz.timezone('Asia/Ho_Chi_Minh')
-            current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
-            payload = {
-                "name": name,
-                "id": mac,
-                "type": "unknown",
-                "operation": "unknown",
-                "location": "unknown",
-                "status": "disable",
-                "time": current_time
-            }
-            await send_to_api(payload)
-        finally:
-            await asyncio.sleep(3)  # Thêm độ trễ sau khi kết nối
 
+            except BleakError as e:
+                print(f"Lỗi BLE khi đọc dữ liệu từ anchor {name}: {e}")
+                # Gửi payload với status "disable" nếu đọc dữ liệu thất bại
+                tz = pytz.timezone('Asia/Ho_Chi_Minh')
+                current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+                payload = {
+                    "name": name,
+                    "id": mac,
+                    "type": "unknown",
+                    "operation": "unknown",
+                    "location": "unknown",
+                    "status": "disable",
+                    "time": current_time
+                }
+                await send_to_api(payload)
+
+            finally:
+                # Ngắt kết nối sau khi hoàn tất
+                await client.disconnect()
+                await asyncio.sleep(3)
 
 # Quét và kết nối tới các module
 async def scan_and_connect():
