@@ -8,13 +8,16 @@ from typing import Dict, Optional
 
 from dotenv import load_dotenv
 import os
+
+from init import *
+
 load_dotenv()
 sv_url = os.getenv("SV_URL") + ":" + os.getenv("PORT") + "/" + os.getenv("TOPIC")
 # UUID của các characteristic
-OPERATION_MODE_UUID = "3f0afd88-7770-46b0-b5e7-9fc099598964"
-LOCATION_DATA_MODE_UUID = "a02b 947e-df97-4516-996a-1882521e0ead"
-LOCATION_DATA_UUID = "003bbdf2-c634-4b3d-ab56-7ec889b89a37"
-LABEL_UUID = "00002a00-0000-1000-8000-00805f9b34fb"
+# OPERATION_MODE_UUID = "3f0afd88-7770-46b0-b5e7-9fc099598964"
+# LOCATION_DATA_MODE_UUID = "a02b 947e-df97-4516-996a-1882521e0ead"
+# LOCATION_DATA_UUID = "003bbdf2-c634-4b3d-ab56-7ec889b89a37"
+# LABEL_UUID = "00002a00-0000-1000-8000-00805f9b34fb"
 
 # Đọc và ghi file module.json
 def load_modules() -> Dict:
@@ -73,7 +76,7 @@ async def connect_and_collect_data(mac: str, module: Dict, semaphore: asyncio.Se
         for attempt in range(retries):
             try:
                 async with BleakClient(mac, timeout=20.0) as client:
-                    label = await client.read_gatt_char(LABEL_UUID)
+                    label = await client.read_gatt_char(NAME_UUID)
                     label = label.decode('utf-8')
                     op_mode = await client.read_gatt_char(OPERATION_MODE_UUID)
                     tag_or_anchor = decode_operation_mode(op_mode)
