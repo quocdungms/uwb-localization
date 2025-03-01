@@ -85,7 +85,7 @@ async def send_to_api(payload: Dict):
 # Callback xử lý dữ liệu từ notify
 def notify_callback(sender: int, data: bytearray, mac: str):
     location = process_location_data(data)
-    tz = pytz.timezone('Asia/HoChiMinh')
+    tz = pytz.timezone('Asia/Ho_Chi_Minh')
     current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
 
     tag_data_storage[mac] = {
@@ -153,7 +153,7 @@ async def handle_anchor(module: Dict):
                 decoded_type = decode_operation_mode(operation_mode)
                 operation_hex = bytes_to_hex(operation_mode)
                 location_hex = process_location_data(location_data)
-                tz = pytz.timezone('Asia/HoChiMinh')
+                tz = pytz.timezone('Asia/Ho_Chi_Minh')
                 current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
                 payload = {
                     "name": label.decode("utf-8", errors="ignore") if label else name,
@@ -166,7 +166,7 @@ async def handle_anchor(module: Dict):
                 await send_to_api(payload)
         except BleakError as e:
             print(f"Lỗi BLE với anchor {name}: {e}")
-            tz = pytz.timezone('Asia/HoChiMinh')
+            tz = pytz.timezone('Asia/Ho_Chi_Minh')
             current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
             payload = {
                 "name": name,
