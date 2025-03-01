@@ -5,12 +5,14 @@ from typing import Dict, List
 import aiohttp
 from bleak import BleakScanner, BleakClient
 from bleak.exc import BleakError
-from dotenv import load_dotenv
-import os
 from datetime import datetime
-import pytz
 from global_var import *
 from location import *
+from dotenv import load_dotenv
+import os
+
+import pytz
+
 
 load_dotenv()
 sv_url = os.getenv("SV_URL") + ":" + os.getenv("PORT") + "/" + os.getenv("TOPIC")
