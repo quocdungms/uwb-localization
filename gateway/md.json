@@ -2,7 +2,7 @@
     {
         "name": "DWC60E",
         "id": "E7:E1:0F:DA:2D:82",
-        "type": "tag",
+        "type": "anchor",
         "status": "active"
     },
     {
@@ -20,7 +20,7 @@
     {
         "name": "DWCE07",
         "id": "EB:52:53:F5:D5:90",
-        "type": "anchor",
+        "type": "tag",
         "status": "active"
     },
     {

@@ -8,9 +8,7 @@ from typing import Dict, Optional
 
 from dotenv import load_dotenv
 import os
-
 from init import *
-
 load_dotenv()
 sv_url = os.getenv("SV_URL") + ":" + os.getenv("PORT") + "/" + os.getenv("TOPIC")
 # UUID của các characteristic
