@@ -60,7 +60,7 @@ def bytes_to_hex(data: bytes) -> str:
 
 
 # Xử lý dữ liệu vị trí từ notify
-def process_location_data(data: bytes) -> str | Any:
+def process_location_data(data: bytes):
     if not data or len(data) < 1:
         return "no_data"
     mode = data[0]
