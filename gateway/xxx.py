@@ -7,7 +7,11 @@ from bleak import BleakScanner, BleakClient
 from bleak.exc import BleakError
 from dotenv import load_dotenv
 import os
+from datetime import datetime
+import pytz
 from init import *
+from location import *
+
 load_dotenv()
 sv_url = os.getenv("SV_URL") + ":" + os.getenv("PORT") + "/" + os.getenv("TOPIC")
 # UUID của BLE service và characteristic
@@ -25,6 +29,7 @@ tag_data_storage = {}
 # Giới hạn số lượng kết nối đồng thời
 MAX_CONCURRENT_CONNECTIONS = 2
 semaphore = asyncio.Semaphore(MAX_CONCURRENT_CONNECTIONS)
+
 
 # Hàm tải danh sách module từ file module.json
 def load_modules() -> List[Dict]:
@@ -54,11 +59,11 @@ def process_location_data(data: bytes) -> str:
         return "no_data"
     mode = data[0]
     if mode == 0 and len(data) == 14:
-        return bytes_to_hex(data)
+        return decode_location_mode_0(data)
     elif mode == 1:
-        return bytes_to_hex(data)
+        return decode_location_mode_1(data)
     elif mode == 2 and len(data) >= 14:
-        return bytes_to_hex(data)
+        return decode_location_mode_2(data)
     else:
         print(f"Định dạng dữ liệu không mong đợi: {bytes_to_hex(data)}")
         return "invalid_data"
@@ -79,10 +84,12 @@ async def send_to_api(payload: Dict):
 
 # Callback xử lý dữ liệu từ notify
 def notify_callback(sender: int, data: bytearray, mac: str):
-    location_hex = process_location_data(data)
-    current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+    location = process_location_data(data)
+    tz = pytz.timezone('Asia/HoChiMinh')
+    current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+
     tag_data_storage[mac] = {
-        "location": location_hex,
+        "location": location,
         "time": current_time
     }
 
@@ -146,7 +153,8 @@ async def handle_anchor(module: Dict):
                 decoded_type = decode_operation_mode(operation_mode)
                 operation_hex = bytes_to_hex(operation_mode)
                 location_hex = process_location_data(location_data)
-                current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+                tz = pytz.timezone('Asia/HoChiMinh')
+                current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
                 payload = {
                     "name": label.decode("utf-8", errors="ignore") if label else name,
                     "id": mac,
@@ -158,17 +166,19 @@ async def handle_anchor(module: Dict):
                 await send_to_api(payload)
         except BleakError as e:
             print(f"Lỗi BLE với anchor {name}: {e}")
+            tz = pytz.timezone('Asia/HoChiMinh')
+            current_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
             payload = {
                 "name": name,
                 "id": mac,
                 "operation": "unknown",
                 "location": "unknown",
                 "status": "disable",
-                "time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+                "time": current_time
             }
             await send_to_api(payload)
         finally:
-            await asyncio.sleep(0.5)  # Thêm độ trễ sau khi kết nối
+            await asyncio.sleep(3)  # Thêm độ trễ sau khi kết nối
 
 # Quét và kết nối tới các module
 async def scan_and_connect():
