@@ -1,6 +1,6 @@
 import asyncio
 from bleak import BleakClient
-from init import *
+from global_var import *
 # UUID của characteristic Operation Mode
 OPERATION_MODE_UUID = "3f0afd88-7770-46b0-b5e7-9fc099598964"
 

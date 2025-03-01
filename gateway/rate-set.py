@@ -1,7 +1,7 @@
 import asyncio
 from bleak import BleakClient, BleakScanner
 import struct
-from init import *
+from global_var import *
 # Địa chỉ MAC của module DWM1001 (tag) - thay bằng địa chỉ thực tế
 DEVICE_ADDRESS = TAG_MAC  # Ví dụ: "00:11:22:33:44:55"
 

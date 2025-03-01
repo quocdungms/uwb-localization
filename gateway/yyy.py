@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 import pytz
-from init import *
+from global_var import *
 from location import *
 
 load_dotenv()

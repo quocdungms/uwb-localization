@@ -1,6 +1,6 @@
 import asyncio
 from bleak import BleakClient
-from init import *
+from global_var import *
 # UUID của characteristic Location Data Mode
 LOCATION_DATA_MODE_UUID = "a02b947e-df97-4516-996a-1882521e0ead"
 

@@ -2,7 +2,7 @@ import asyncio
 import struct
 from bleak import BleakClient
 
-from init import UPDATE_RATE_UUID, TAG_MAC
+from global_var import UPDATE_RATE_UUID, TAG_MAC
 
 
 # Hàm đọc và giải mã Update Rate

@@ -1,6 +1,6 @@
 import asyncio
 from bleak import BleakClient
-from init import *
+from global_var import *
 
 # Địa chỉ MAC hoặc UUID của thiết bị BLE
 DEVICE_ADDRESS = TAG_MAC  # Thay bằng địa chỉ thiết bị BLE của bạn

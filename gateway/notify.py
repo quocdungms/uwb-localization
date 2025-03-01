@@ -2,7 +2,7 @@ import asyncio
 import struct
 from bleak import BleakClient
 from location import *
-from init import *
+from global_var import *
 
 
 # Hàm xử lý dữ liệu nhận được từ notification
