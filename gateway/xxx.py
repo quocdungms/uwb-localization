@@ -5,13 +5,11 @@ from typing import Dict, List
 import aiohttp
 from bleak import BleakScanner, BleakClient
 from bleak.exc import BleakError
-
 from dotenv import load_dotenv
 import os
 from init import *
 load_dotenv()
 sv_url = os.getenv("SV_URL") + ":" + os.getenv("PORT") + "/" + os.getenv("TOPIC")
-
 # UUID của BLE service và characteristic
 NETWORK_NODE_SERVICE_UUID = "680c21d9-c946-4c1f-9c11-baa1c21329e7"
 LABEL_CHAR_UUID = "00002a00-0000-1000-8000-00805f9b34fb"
@@ -24,10 +22,14 @@ API_URL = sv_url
 # Danh sách lưu trữ dữ liệu từ notify của các tag
 tag_data_storage = {}
 
+# Giới hạn số lượng kết nối đồng thời
+MAX_CONCURRENT_CONNECTIONS = 2
+semaphore = asyncio.Semaphore(MAX_CONCURRENT_CONNECTIONS)
+
 # Hàm tải danh sách module từ file module.json
 def load_modules() -> List[Dict]:
     try:
-        with open("md.json", "r") as f:
+        with open("module.json", "r") as f:
             return json.load(f)
     except FileNotFoundError:
         print("Không tìm thấy file module.json. Bắt đầu với danh sách rỗng.")
@@ -61,7 +63,7 @@ def process_location_data(data: bytes) -> str:
         print(f"Định dạng dữ liệu không mong đợi: {bytes_to_hex(data)}")
         return "invalid_data"
 
-# Gửi dữ liệu lên server qua API
+# Gửi dữ liệu lên server qua API với kiểm tra lỗi chi tiết
 async def send_to_api(payload: Dict):
     async with aiohttp.ClientSession() as session:
         try:
@@ -69,7 +71,9 @@ async def send_to_api(payload: Dict):
                 if response.status == 200:
                     print(f"Gửi dữ liệu thành công cho {payload['name']}")
                 else:
-                    print(f"Gửi dữ liệu thất bại cho {payload['name']}: {response.status}")
+                    print(f"Gửi dữ liệu thất bại cho {payload['name']}: Mã lỗi {response.status}")
+                    if response.status == 404:
+                        print("Endpoint không tồn tại. Vui lòng kiểm tra cấu hình server.")
         except aiohttp.ClientError as e:
             print(f"Lỗi khi gửi dữ liệu tới API: {e}")
 
@@ -90,99 +94,87 @@ async def send_tag_data_periodically(mac: str, name: str):
             payload = {
                 "name": name,
                 "id": mac,
-                "operation": "tag_operation",  # Có thể thay bằng dữ liệu thực tế nếu cần
+                "operation": "tag_operation",
                 "location": data["location"],
                 "status": "active",
                 "time": data["time"]
             }
             await send_to_api(payload)
-            del tag_data_storage[mac]  # Xóa sau khi gửi
+            del tag_data_storage[mac]
         await asyncio.sleep(1)
 
-# Xử lý kết nối và notify cho tag
+# Xử lý kết nối và notify cho tag với semaphore
 async def handle_tag(module: Dict):
-    mac = module["id"]
-    name = module["name"]
-    print(f"Đang kết nối tới tag {name} ({mac})...")
+    async with semaphore:
+        mac = module["id"]
+        name = module["name"]
+        print(f"Đang kết nối tới tag {name} ({mac})...")
+        try:
+            client = BleakClient(mac)
+            await client.connect()
+            print(f"Đã kết nối tới tag {name}")
+            await client.start_notify(LOCATION_DATA_CHAR_UUID, lambda sender, data: notify_callback(sender, data, mac))
+            send_task = asyncio.create_task(send_tag_data_periodically(mac, name))
+            while True:
+                await asyncio.sleep(1)
+                if not client.is_connected:
+                    print(f"Kết nối với tag {name} đã bị ngắt")
+                    break
+            send_task.cancel()
+        except BleakError as e:
+            print(f"Lỗi BLE với tag {name}: {e}")
+        except Exception as e:
+            print(f"Lỗi không mong đợi với tag {name}: {e}")
+        finally:
+            await asyncio.sleep(0.5)  # Thêm độ trễ sau khi kết nối
 
-    try:
-        client = BleakClient(mac)
-        await client.connect()
-        print(f"Đã kết nối tới tag {name}")
-
-        # Kích hoạt notify trên characteristic Location data
-        await client.start_notify(LOCATION_DATA_CHAR_UUID, lambda sender, data: notify_callback(sender, data, mac))
-
-        # Tạo task gửi dữ liệu định kỳ
-        send_task = asyncio.create_task(send_tag_data_periodically(mac, name))
-
-        # Duy trì kết nối vô hạn
-        while True:
-            await asyncio.sleep(1)
-            if not client.is_connected:
-                print(f"Kết nối với tag {name} đã bị ngắt")
-                break
-
-        # Hủy task khi ngắt kết nối
-        send_task.cancel()
-
-    except BleakError as e:
-        print(f"Lỗi BLE với tag {name}: {e}")
-    except Exception as e:
-        print(f"Lỗi không mong đợi với tag {name}: {e}")
-
-# Xử lý module anchor (đọc dữ liệu một lần)
+# Xử lý module anchor (đọc dữ liệu một lần) với semaphore
 async def handle_anchor(module: Dict):
-    mac = module["id"]
-    name = module["name"]
-    print(f"Đang kết nối tới anchor {name} ({mac})...")
-
-    try:
-        async with BleakClient(mac) as client:
-            if not client.is_connected:
-                print(f"Kết nối tới anchor {name} thất bại")
-                return
-
-            print(f"Đã kết nối tới anchor {name}")
-
-            label = await client.read_gatt_char(LABEL_CHAR_UUID)
-            operation_mode = await client.read_gatt_char(OPERATION_MODE_CHAR_UUID)
-            location_data = await client.read_gatt_char(LOCATION_DATA_CHAR_UUID)
-
-            decoded_type = decode_operation_mode(operation_mode)
-            operation_hex = bytes_to_hex(operation_mode)
-            location_hex = process_location_data(location_data)
-            current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-
+    async with semaphore:
+        mac = module["id"]
+        name = module["name"]
+        print(f"Đang kết nối tới anchor {name} ({mac})...")
+        try:
+            async with BleakClient(mac) as client:
+                if not client.is_connected:
+                    print(f"Kết nối tới anchor {name} thất bại")
+                    return
+                print(f"Đã kết nối tới anchor {name}")
+                label = await client.read_gatt_char(LABEL_CHAR_UUID)
+                operation_mode = await client.read_gatt_char(OPERATION_MODE_CHAR_UUID)
+                location_data = await client.read_gatt_char(LOCATION_DATA_CHAR_UUID)
+                decoded_type = decode_operation_mode(operation_mode)
+                operation_hex = bytes_to_hex(operation_mode)
+                location_hex = process_location_data(location_data)
+                current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+                payload = {
+                    "name": label.decode("utf-8", errors="ignore") if label else name,
+                    "id": mac,
+                    "operation": operation_hex,
+                    "location": location_hex,
+                    "status": "active",
+                    "time": current_time
+                }
+                await send_to_api(payload)
+        except BleakError as e:
+            print(f"Lỗi BLE với anchor {name}: {e}")
             payload = {
-                "name": label.decode("utf-8", errors="ignore") if label else name,
+                "name": name,
                 "id": mac,
-                "operation": operation_hex,
-                "location": location_hex,
-                "status": "active",
-                "time": current_time
+                "operation": "unknown",
+                "location": "unknown",
+                "status": "disable",
+                "time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
             }
-
             await send_to_api(payload)
-
-    except BleakError as e:
-        print(f"Lỗi BLE với anchor {name}: {e}")
-        payload = {
-            "name": name,
-            "id": mac,
-            "operation": "unknown",
-            "location": "unknown",
-            "status": "disable",
-            "time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-        }
-        await send_to_api(payload)
+        finally:
+            await asyncio.sleep(0.5)  # Thêm độ trễ sau khi kết nối
 
 # Quét và kết nối tới các module
 async def scan_and_connect():
     print("Đang quét các thiết bị BLE...")
     devices = await BleakScanner.discover(timeout=10.0)
     managed_modules = load_modules()
-
     tasks = []
     for module in managed_modules:
         if module["status"] == "disable":
@@ -197,7 +189,6 @@ async def scan_and_connect():
                 break
         else:
             print(f"Không tìm thấy module {module['name']} ({module['id']}) trong quá trình quét.")
-
     if tasks:
         await asyncio.gather(*tasks)
     else:
