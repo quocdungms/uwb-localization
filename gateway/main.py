@@ -79,7 +79,7 @@ def process_location_data(data: bytes):
 async def send_to_api(payload: Dict):
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.post(API_URL, json=payload) as response:
+            async with session.post(API_URL, json=json.dump(payload)) as response:
                 if response.status == 200:
                     print(f"Gửi dữ liệu thành công cho {payload['name']}")
                 else:
