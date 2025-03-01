@@ -116,6 +116,7 @@ async def send_tag_data_periodically(mac: str, name: str):
                 "status": "active",
                 "time": data["time"]
             }
+            print(payload)
             await send_to_api(payload)
             del tag_data_storage[mac]
         await asyncio.sleep(1)
