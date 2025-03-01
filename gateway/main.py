@@ -1,7 +1,7 @@
 import asyncio
 import json
 import time
-from typing import Dict, List
+from typing import Dict, List, Any
 import aiohttp
 from bleak import BleakScanner, BleakClient
 from bleak.exc import BleakError
@@ -60,7 +60,7 @@ def bytes_to_hex(data: bytes) -> str:
 
 
 # Xử lý dữ liệu vị trí từ notify
-def process_location_data(data: bytes) -> str:
+def process_location_data(data: bytes) -> str | Any:
     if not data or len(data) < 1:
         return "no_data"
     mode = data[0]
