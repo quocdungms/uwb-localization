@@ -15,4 +15,10 @@ def raw_to_bits(data):
 def decode_operation_mode(op_mode: bytes) -> str:
     return 'tag' if (op_mode[0] & 0x80) == 0 else 'anchor'
 
+def hex_to_byte_array(data:hex) -> bytes:
+    return bytes.fromhex(data)
+
+
+print(hex_to_byte_array("d920"))
+
 

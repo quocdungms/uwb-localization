@@ -173,7 +173,7 @@ async def handle_anchor(module: Dict):
         print(f"Đang kết nối tới anchor {name} ({mac})...")
 
         # Thiết lập số lần thử kết nối
-        retry_count = 3
+        retry_count = 5
         client = None
 
         # Thử kết nối tối đa 3 lần

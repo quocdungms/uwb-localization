@@ -18,15 +18,15 @@
         "status": "active"
       },
     {
-        "name": "DWCE07",
-        "id": "EB:52:53:F5:D5:90",
-        "type": "tag",
-        "status": "active"
-    },
-    {
         "name": "DWD40F",
         "id": "EB:C3:F1:BC:24:DD",
         "type": "anchor",
+        "status": "active"
+    },
+    {
+        "name": "DWCE07",
+        "id": "EB:52:53:F5:D5:90",
+        "type": "tag",
         "status": "active"
     }
 ]
