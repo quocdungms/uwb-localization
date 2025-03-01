@@ -2,6 +2,8 @@ import asyncio
 import json
 import time
 from typing import Dict, List, Any
+from xml.etree.ElementTree import indent
+
 import aiohttp
 from bleak import BleakScanner, BleakClient
 from bleak.exc import BleakError
@@ -76,10 +78,10 @@ def process_location_data(data: bytes):
 
 
 # Gửi dữ liệu lên server qua API với kiểm tra lỗi chi tiết
-async def send_to_api(payload: Dict):
+async def send_to_api(payload: json):
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.post(API_URL, json=json.dump(payload)) as response:
+            async with session.post(API_URL, json=payload) as response:
                 if response.status == 200:
                     print(f"Gửi dữ liệu thành công cho {payload['name']}")
                 else:
@@ -117,6 +119,7 @@ async def send_tag_data_periodically(mac: str, name: str):
                 "time": data["time"]
             }
             print(payload)
+            json.dump(payload)
             await send_to_api(payload)
             del tag_data_storage[mac]
         await asyncio.sleep(1)
